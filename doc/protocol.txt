@@ -1,0 +1,93 @@
+    Track                Server                   Database
+1. 	         <-      START_RACE
+2. START_ACK     ->
+// Race begins
+3. TRACK_LAP     ->
+4.		 <-	 TRACK_LAP_ACK     ->     track_add_lap()
+5.
+
+var identity = {
+    "identity": {
+        "type": "car",
+        "id": "2637"
+    }
+};
+var command = {
+        "command": {
+                "type": "start", //start, stop, reset, status
+        }
+}
+var telemetrics = {
+    "telemetrics": {
+        "speed": "231",
+        "rpm": "7947",
+        "gforce": "3.4"
+    }
+};
+
+// Request
+{
+        "type": "string",
+        "data": {
+                ...
+        },
+        "version": "string"
+}
+
+
+// Response
+{
+        "type": "string",
+        "status": "string",
+        "data": {
+                ...
+        },
+        "version": "string"
+}
+
+
+Send reset command:
+1. Tell track to stop the race(if started) and reset the internal state machine
+2. Tell database to flush the old data and initate a new race log session
+3. Make sure we have all needed information about the tracks and the cars on each track
+
+Send start command:
+
+Send stop command:
+1. Tell the track to stop the car. And will reset internal states.
+2. Tell database that race is over.
+
+Parallell to this:
+1. Car will periodically send telemetric data to the server which will tag it
+   with the track number and relay to the web clients.
+
+
+Commands:
+1. START_RACE 0x10
+	Tells the track to start the race. Respond with ACK/NAK.
+2. STOP_RACE  0x11
+        Tells the track to stop the race. Respond with ACK/NAK.
+3. RESET_RACE 0x12
+        Tells the track to reset internal states and prepare for a new start. Respond with ACK/NAK.
+4. TRACK_LAP  0x13
+	Tells the server that one of the cars has completed a lap around the track. Including laptime.
+5. TRACK_STATUS 0x14
+	Asks track to report current track status
+6. TRACK_STATUS_RESPONSE 0x15
+        Report current status
+6. CAR_INFO 0x16
+	Tells the server the ID number of the carduino on that track.
+7. TRACK_RESET 0x17
+	Tells the track to reset into the init state.
+8. ACK/NAK (0x18/0x17)
+	Sent for each received command
+
+Different Clients:
+- Car client (Telemetric data(mainly car->server))
+- Track client (Two-way command data)
+- Web client (One way filtered telemetric data (server->web))
+
+Buttons on server:
+-Start
+-Stop
+-Reset

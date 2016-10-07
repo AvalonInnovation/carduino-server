@@ -1,0 +1,6 @@
+This is the carduino server project.
+
+It consists of two parts:
+- src/: The server back end, responsible for communicating with the race track
+  and publishing results to web front end.
+- web/: The web based front end showing realtime telemetry data.

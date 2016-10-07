@@ -1,0 +1,19 @@
+{
+  "name": "carduino-server",
+  "version": "0.0.1",
+  "description": "Server for the carduino project",
+  "main": "src/server.js",
+  "directories": {
+    "doc": "doc",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "/home/anja/git/carduinod.git"
+  },
+  "author": "Anders Jakobsson",
+  "license": "ISC"
+}
