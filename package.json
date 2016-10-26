@@ -15,5 +15,10 @@
     "url": "/home/anja/git/carduinod.git"
   },
   "author": "Anders Jakobsson",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "readline": "^1.3.0",
+    "serialport": "^4.0.3",
+    "ws": "^1.1.1"
+  }
 }
