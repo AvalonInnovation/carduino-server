@@ -2,13 +2,17 @@ var WebSocketServer = require('ws').Server
 var readline = require('readline');
 
 var wss = new WebSocketServer({
-    port: 8080
+    port: 80
 });
 
 var track_info = []
 var cars = []
 var webclients = []
 var tracks = []
+
+var RAW_CMD_TELEMETRY = 1;
+var prev_raw = telemetry_raw;
+var raw_str = "";
 
 var msg_request = {
     'type': 'command',
@@ -23,6 +27,39 @@ var lap_info = {
     "data": {
         "track_id": null,
         "time": 0,
+    },
+    "version": 1.0
+}
+
+var telemetry_raw = {
+    "type": "telemetry_raw",
+    "data": {
+        "id": 0,
+        "time": 0,
+        "enc_f": 0,
+        "enc_r": 0,
+        "acc_x": 0,
+        "acc_y": 0,
+        "acc_z": 0,
+        "gyro_u": 0,
+        "gyro_v": 0,
+        "gyro_w": 0,
+        "current": 0,
+        "speed": 0,
+    },
+    "version": 1.0
+}
+
+var telemetry = {
+    "type": "telemetry",
+    "data": {
+        "id": 0,
+        "time": 0,
+        "acc_x": 0,
+        "acc_y": 0,
+        "gyro": 0,
+        "current": 0,
+        "speed": 0,
     },
     "version": 1.0
 }
@@ -52,7 +89,7 @@ var rl = readline.createInterface({
 
 rl.on('line', function(line) {
     if (line != "") {
-        command_handler(line);
+        cli_handler(line);
     }
 });
 
@@ -96,7 +133,7 @@ function remove_client(ws) {
 }
 
 /* Commands from CLI */
-function command_handler(cmd) {
+function cli_handler(cmd) {
     console.log('Send command %s to tracks', cmd);
     if (cmd == "START") {
         tracks.forEach(function(ws) {
@@ -121,37 +158,126 @@ function command_handler(cmd) {
     }
 }
 
+function serial_handler(){
+
+}
+
 function broadcast_telemetrics(message) {
-    webclients.forEach(function(ws) {
-        ws.send(message);
-    });
+    if (webclients.length > 0) {
+        var json = JSON.stringify(message)
+        console.log('Broadcast: %s', json);
+        webclients.forEach(function(ws) {
+            ws.send(json);
+        });
+    }
+}
+
+function translate_acc(coord) {
+    return coord / 10;
+}
+
+function translate_gyro(angle) {
+    return angle / 10;
+}
+
+function calc_speed(dr, dt) {
+    // return speed in cm/s
+    console.log('dr: %d(%d), dt: %d(%d), s: %d', dr,dr * 0.0672, dt, dt*0.000000125, (dr * 0.0672) / (dt*0.000000125));
+    return ((dr * 0.0672) / (dt*0.000000125));
+}
+
+function assemble_raw(msg) {
+    var c;
+
+    for (var i = 0; i < msg.length; i++) {
+        c = String.fromCharCode(msg[i]);
+        raw_str += c;
+        if (c == '!') {
+            handle_raw(raw_str);
+            raw_str = "";
+        } else if (c == '#') {
+            raw_str = c;
+        }
+    }
+}
+
+function handle_raw(message) {
+    console.log('RAW: %s', message);
+
+    var data = message.match(/(-?\d+)/g);
+    var raw = JSON.parse(JSON.stringify(telemetry_raw));
+    var msg = telemetry;
+
+    if (data.length == 12) {
+        //console.log('RAW: %s', data);
+        raw.data.id = data[0];
+        raw.data.time = data[1];
+        raw.data.enc_f = data[2];
+        raw.data.enc_r = data[3];
+        raw.data.acc_x = data[4];
+        raw.data.acc_y = data[5];
+        raw.data.acc_z = data[6];
+        raw.data.gyro_u = data[7];
+        raw.data.gyro_v = data[8];
+        raw.data.gyro_w = data[9];
+        raw.data.current = data[10];
+        raw.data.speed = data[11];
+
+        /*console.log('id:%d, t:%d, ef:%d, er:%d, x:%d, y:%d, z:%d, u:%d, v:%d, w:%d, c:%d, s:%d', data[0],
+            raw.data.time,
+            raw.data.enc_f,
+            raw.data.enc_r,
+            raw.data.acc_x,
+            raw.data.acc_y,
+            raw.data.acc_z,
+            raw.data.gyro_u,
+            raw.data.gyro_v,
+            raw.data.gyro_w,
+            raw.data.current,
+            raw.data.speed);*/
+
+        msg.data.id = raw.data.id; //Should be translated
+        msg.data.time = Date.now();
+        msg.data.acc_x = translate_acc(raw.data.acc_x);
+        msg.data.acc_y = translate_acc(raw.data.acc_y);
+        msg.data.gyro = translate_gyro(raw.data.gyro_w);
+
+        msg.data.speed = calc_speed(raw.data.enc_r - prev_raw.data.enc_r, raw.data.time - prev_raw.data.time);
+
+        broadcast_telemetrics(msg);
+        prev_raw = raw;
+    }
 }
 
 function message_handler(ws, message) {
 
-    var msg = JSON.parse(message);
+    if (message[0] != '{') {
+        assemble_raw(message);
+    } else {
+        var msg = JSON.parse(message);
 
-    switch (msg.type) {
-        case "identity":
-            add_client(ws, msg.data.type, msg.data.id);
-            console.log('Identity: Type: %s, ID: %s', msg.data.type, msg.data.id);
-            break;
-        case "telemetry":
-            broadcast_telemetrics(message);
-            console.log('Telemetry: car_id: %s, speed: %s, rpm: %s, gforce ',
-                msg.data.id, msg.data.speed, msg.data.rpm, msg.data.gforce);
-            break;
-        case "track-info":
-            console.log('Track-info: track_id: %s, car_id: %s, status: %s',
-                msg.data.track_id, msg.data.car_id, msg.data.status);
-            break;
-        case "lap-info":
-            console.log('Lap-info: track #%s, lap time: %s',
-                msg.data.track_id, msg.data.time);
-            break;
-        default:
-            console.log('Unknown message!');
-            break;
+        switch (msg.type) {
+            case "identity":
+                add_client(ws, msg.data.type, msg.data.id);
+                console.log('Identity: Type: %s, ID: %s', msg.data.type, msg.data.id);
+                break;
+            case "telemetry":
+                broadcast_telemetrics(message);
+                console.log('Telemetry: car_id: %s, speed: %s, rpm: %s, gforce ',
+                    msg.data.id, msg.data.speed, msg.data.rpm, msg.data.gforce);
+                break;
+            case "track-info":
+                console.log('Track-info: track_id: %s, car_id: %s, status: %s',
+                    msg.data.track_id, msg.data.car_id, msg.data.status);
+                break;
+            case "lap-info":
+                console.log('Lap-info: track #%s, lap time: %s',
+                    msg.data.track_id, msg.data.time);
+                break;
+            default:
+                console.log('Unknown message!');
+                break;
+        }
     }
 }
 
