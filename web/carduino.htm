@@ -1,134 +1,121 @@
 <!doctype html>
 
 <html>
-  <head>
-    <title>Auto-adjust</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <style>
-      body {
-        text-align: center;
-      }
+    <head>
+        <title>Auto-adjust</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+        <style>
+            body {
+                text-align: center;
+            }
 
-      #p1g1, #p1g2, #p1g3, #p2g1, #p2g2, #p2g3 {
-        width:200px; height:160px;
-        display: inline-block;
-        margin: 1em;
-      }
+            .panel {
+                    width:706px;
+                display: flex;
+                /*flex-wrap: wrap;*/
+                /* optional. only if you want the items to wrap */
+                justify-content: center;
+                /* for horizontal alignment */
+                align-items: center;
+                /* for vertical alignment */
+            }
 
-      p {
-        display: block;
-        width: 450px;
-        margin: 2em auto;
-        text-align: left;
-      }
-    </style>
+            #acc1,
+            #acc2,
+            #gyro1,
+            #gyro2 {
+                width: 200px;
+                height: 200px;
+                display: inline-block;
+                margin: 0;
+            }
 
+            #speed1,
+            #speed2 {
+                width: 300px;
+                height: 300px;
+                display: inline-block;
+                margin: auto;
+            }
 
-  </head>
-  <body>
-	  <h2>Player 1:</h2>
-    <div id="p1g1"></div>
-    <div id="p1g2"></div>
-    <div id="p1g3"></div>
-	<h2>Player 2:</h2>
-	<div id="p2g1"></div>
-	<div id="p2g2"></div>
-	<div id="p2g3"></div>
+            p {
+                display: block;
+                width: 450px;
+                margin: 2em auto;
+                text-align: left;
+            }
 
-    <script src="js/raphael-2.1.4.min.js"></script>
-    <script src="js/justgage.js"></script>
-    <script>
-      var p1g1, p1g2, p1g3;
-      var p2g1, p2g2, p2g3;
-      var ws;
-      var identity = {
-          "type": "identity",
-          "data": {
-              "type": "web",
-              "id": "2637"
-          },
-          "version": 1.0
-      };
+        </style>
 
-      window.onload = function(){
-	var ws = new WebSocket('ws://localhost:8080/');
+    </head>
+    <body>
+        <h2>Player 1:</h2>
+        <div class="panel">
+            <div id="acc1"></div>
+            <div id="speed1"></div>
+            <div id="gyro1"></div>
+        </div>
+        <h2>Player 2:</h2>
+        <div class="panel">
+            <div id="acc2"></div>
+            <div id="speed2"></div>
+            <div id="gyro2"></div>
+        </div>
+        <script src="js/raphael-2.1.4.min.js"></script>
+        <script src="js/carduino.js"></script>
+        <script>
 
-        var p1g1 = new JustGage({
-          id: "p1g1",
-          value: 0,
-          min: 0,
-          max: 100,
-          title: "Speed",
-          label: "km/h"
-        });
+            var ws;
+            var identity = {
+                "type": "identity",
+                "data": {
+                    "type": "web",
+                    "id": "2637"
+                },
+                "version": 1.0
+            };
 
-        var p1g2 = new JustGage({
-          id: "p1g2",
-          value: 0,
-          min: 0,
-          max: 100,
-          title: "RPM",
-          label: "x100/s"
-        });
+            window.onload = function() {
+                    var acc1 = new AccGauge("acc1");
+                    var gyro1 = new GyroGauge("gyro1");
+                    var speed1 = new SpeedGauge("speed1");
+                    var acc2 = new AccGauge("acc2");
+                    var gyro2 = new GyroGauge("gyro2");
+                    var speed2 = new SpeedGauge("speed2");
 
-        var p1g3 = new JustGage({
-          id: "p1g3",
-          value: 0,
-          min: 0,
-          max: 100,
-          title: "G-force",
-          label: "m/s^2"
-        });
+                var acc = [acc1, acc2];
+                var gyro = [gyro1, gyro2];
+                var speed = [speed1, speed2];
 
-	var p2g1 = new JustGage({
-	  id: "p2g1",
-	  value: 0,
-	  min: 0,
-	  max: 100,
-	  title: "Speed",
-	  label: "km/h"
-	});
+                var ws = new WebSocket('ws://localhost:80/');
 
-	var p2g2 = new JustGage({
-	  id: "p2g2",
-	  value: getRandomInt(0, 100),
-	  min: 0,
-	  max: 100,
-	  title: "RPM",
-	  label: "x100/s"
-	});
-
-	var p2g3 = new JustGage({
-	  id: "p2g3",
-	  value: getRandomInt(0, 100),
-	  min: 0,
-	  max: 100,
-	  title: "G-force",
-	  label: "m/s^2"
-	});
-
-        ws.onopen = function(event) {
-                ws.send(JSON.stringify(identity));
-        }
-	ws.onmessage = function(event) {
-                var msg = JSON.parse(event.data);
-
-                if ( msg.type == 'telemetrics' ) {
-                        p1g1.refresh(msg.data.speed);
-                        p1g2.refresh(msg.data.rpm);
-                        p1g3.refresh(msg.data.gforce);
+                ws.onopen = function(event) {
+                    ws.send(JSON.stringify(identity));
                 }
 
-	    console.log('Message received: ' + msg);
-	};
+                ws.onmessage = function(event) {
+                    var msg = JSON.parse(event.data);
 
-        setInterval(function() {
-          //p1g2.refresh(getRandomInt(50, 100));
-          //p1g3.refresh(getRandomInt(0, 50));
-	  p2g2.refresh(getRandomInt(50, 100));
-          p2g3.refresh(getRandomInt(0, 50));
-  }, 100);
-      };
-    </script>
-  </body>
+                    if(msg.type == "telemetry") {
+                            acc[0].refresh(msg.data.acc_x, msg.data.acc_y);
+                            speed[0].refresh(msg.data.speed - 140);
+                            gyro[0].refresh(msg.data.gyro);
+                    }
+
+                    console.log('Message received: ' + msg);
+                };
+                speed1.refresh(-140);
+                speed2.refresh(-140);
+                /*var speed_v = 0;
+                setInterval(function() {
+                    if (speed_v > 140 * 2)
+                        speed_v = 0;
+                   // acc1.refresh(getRandomInt(-50, 50), getRandomInt(-50, 50));
+                    //gyro1.refresh(getRandomInt(-90, 90));
+                    //speed1.refresh(speed_v++ - 140);
+                }, 100);
+*/
+            };
+        </script>
+    </body>
 </html>
