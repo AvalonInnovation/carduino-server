@@ -1,43 +1,5 @@
-var WebSocketServer = require('ws').Server
-
-//var cars = []
-var webclients = []
-
-var RAW_CMD_TELEMETRY = 1;
-var prev_raw = telemetry_raw;
-var raw_str = "";
-
-function TelemetryServer(port) {
-    this.port = port;
-    this.wss = new WebSocketServer({
-        port: this.port
-    });
-}
-
-TelemetryServer.prototype.init = function() {
-    // Initialize websocket server and add callbacks
-    var self = this;
-    this.wss.on('connection', function connection(ws) {
-
-        ws.on('message', function incoming(message) {
-            self.websocket_handler(this, message);
-        });
-
-        ws.on('close', function close(code, message) {
-            self.remove_client(this);
-            console.log('Connection closed: %s', message);
-        });
-
-    });
-}
-
-var msg_request = {
-    'type': 'command',
-    'data': {
-        'type': null
-    },
-    'version': 1.0
-}
+var util = require('util');
+var WebSocketServer = require('ws').Server;
 
 var lap_info = {
     "type": "lap-info",
@@ -81,58 +43,138 @@ var telemetry = {
     "version": 1.0
 }
 
-var Car = new function(ws, id) {
+function WSClient(ws) {
     this.ws = ws;
-    this.id = id;
+    this.id = "";
+    this.type = ""; // car, frontend
+    this.prev_raw = JSON.parse(JSON.stringify(telemetry_raw));
+    this.raw_str = "";
+}
+util.inherits(WSClient, new require('events').EventEmitter);
+
+function TelemetryServer(host, port) {
+    this.host = host;
+    this.port = port;
+    this.wss = null;
+    this.clients = [];
+}
+util.inherits(TelemetryServer, new require('events').EventEmitter);
+
+TelemetryServer.prototype.init = function() {
+    console.log("TelemetryServer: Initializing...");
+    // Initialize websocket server and add callbacks
+    var self = this;
+    self.wss = new WebSocketServer({
+        host: this.host,
+        port: this.port
+    });
+
+    this.wss.on('connection', function connection(ws) {
+        var client = new WSClient(ws);
+        client.on("message", self.handle_message.bind(self));
+        self.clients.push(client);
+
+        ws.on('message', function incoming(message) {
+            client.message_handler(message);
+        });
+
+        ws.on('close', function close(code, message) {
+            self.remove_client(client);
+        });
+
+    });
 }
 
-TelemetryServer.prototype.broadcast_telemetrics = function(message) {
-    if (webclients.length > 0) {
+// Relay event to higher levels
+TelemetryServer.prototype.handle_message = function(message) {
+        this.emit("message", message);
+}
+
+// Broadcast message to all frontend clients
+TelemetryServer.prototype.broadcast = function(message) {
+    if (this.clients.length > 0) {
         var json = JSON.stringify(message);
         console.log('Broadcast: %s', json);
-        webclients.forEach(function(ws) {
-            ws.send(json);
+        this.clients.forEach(function(client) {
+            if(client.type == 'frontend') {
+                client.ws.send(json);
+            }
         });
     }
 }
 
-function translate_acc(coord) {
-    return coord / 10;
+TelemetryServer.prototype.remove_client = function(client) {
+    var index = -1;
+
+    // Check if client exists
+    if ((index = this.clients.indexOf(client)) >= 0) {
+        this.clients.splice(index, 1);
+        console.log('TelemetryServer: Connection closed');
+    } else {
+        // Unknown client
+        console.log('TelemetryServer: Error, could not remove unkown client');
+    }
 }
 
-function translate_gyro(angle) {
-    return angle / 10;
-}
+WSClient.prototype.message_handler = function(message) {
 
-function calc_speed(dr, dt) {
-    // return speed in cm/s
-    return (10 * (dr * 0.0672) / (dt * 0.000000125));
-}
+    if (message[0] != '{' && message[message.length - 1] != '}') {
+        this.type = "car";
+        this.assemble_raw(message);
+    } else {
+        var msg = JSON.parse(message);
 
-function assemble_raw(msg) {
-    var c;
-
-    for (var i = 0; i < msg.length; i++) {
-        c = String.fromCharCode(msg[i]);
-        raw_str += c;
-        if (c == '!') {
-            handle_raw(raw_str);
-            raw_str = "";
-        } else if (c == '#') {
-            raw_str = c;
+        switch (msg.type) {
+            case "identity":
+                //add_client(ws, msg.data.type, msg.data.id);
+                this.type = "frontend";
+                this.id = msg.data.id;
+                console.log('WSClient: New fontend connection');
+                break;
+                /*case "telemetry":
+                      broadcast_telemetrics(message);
+                      console.log('Telemetry: car_id: %s, speed: %s, rpm: %s, gforce ',
+                          msg.data.id, msg.data.speed, msg.data.rpm, msg.data.gforce);
+                      break;
+                  case "track-info":
+                      console.log('Track-info: track_id: %s, car_id: %s, status: %s',
+                          msg.data.track_id, msg.data.car_id, msg.data.status);
+                      break;
+                  case "lap-info":
+                      console.log('Lap-info: track #%s, lap time: %s',
+                          msg.data.track_id, msg.data.time);
+                      break;*/
+            default:
+                console.log('Unknown message!');
+                break;
         }
     }
 }
 
-TelemetryServer.prototype.handle_raw = function(message) {
-    console.log('RAW: %s', message);
+WSClient.prototype.assemble_raw = function(msg) {
+    var c;
+
+    for (var i = 0; i < msg.length; i++) {
+        //c = String.fromCharCode(msg[i]);
+        c = msg[i]; //DBG ONLY!
+        this.raw_str += c;
+        if (c == '!') {
+            this.handle_raw(this.raw_str);
+            this.raw_str = "";
+        } else if (c == '#') {
+            this.raw_str = c;
+        }
+    }
+}
+
+WSClient.prototype.handle_raw = function(message) {
 
     var data = message.match(/(-?\d+)/g);
+
     var raw = JSON.parse(JSON.stringify(telemetry_raw));
-    var msg = telemetry;
+    var msg = JSON.parse(JSON.stringify(telemetry));
 
     if (data.length == 12) {
-        //console.log('RAW: %s', data);
         raw.data.id = data[0];
         raw.data.time = data[1];
         raw.data.enc_f = data[2];
@@ -159,86 +201,34 @@ TelemetryServer.prototype.handle_raw = function(message) {
             raw.data.current,
             raw.data.speed);*/
 
-        msg.data.id = trackCtrl.get_track_id(raw.data.id); //Should be translated
+        msg.data.id = raw.data.id;
         msg.data.time = Date.now();
         msg.data.acc_x = translate_acc(raw.data.acc_x);
         msg.data.acc_y = translate_acc(raw.data.acc_y);
         msg.data.gyro = translate_gyro(raw.data.gyro_w);
 
-        msg.data.speed = calc_speed(raw.data.enc_r - prev_raw.data.enc_r, raw.data.time - prev_raw.data.time);
-
-        broadcast_telemetrics(msg);
-        prev_raw = raw;
+        msg.data.speed = calc_speed(raw.data.enc_r - this.prev_raw.data.enc_r, raw.data.time - this.prev_raw.data.time);
+        // Fire new message event
+        this.emit('message', msg);
+        //broadcast_telemetrics(msg);
+        this.prev_raw = raw;
     }
 }
 
-TelemetryServer.prototype.add_client(ws, type, id) {
-    if (type == "car") {
-        //cars.push(new Car(ws, id));
-        cars.push(ws);
-        console.log('Adding new CAR client');
-    } else if (type == "track") {
-        //tracks.push(new Track(ws, id, car-id));
-        tracks.push(ws);
-        console.log('Adding new TRACK client');
-    } else if (type == "web") {
-        webclients.push(ws);
-        console.log('Adding new WEB client');
-    } else {
-        // Unknown type
-        console.log('Unknown type');
-    }
+function translate_acc(coord) {
+    return coord / 10;
 }
 
-function remove_client(ws) {
-    var index = -1;
-
-    if ((index = webclients.indexOf(ws)) >= 0) {
-        webclients.splice(index, 1);
-        console.log('Remove WEB client');
-    } else if ((index = cars.indexOf(ws)) >= 0) {
-        //cars.forEach(function(item) {
-        //            if (item.ws == ws)
-        //  });
-        cars.splice(index, 1);
-        console.log('Remove CAR client');
-    } else if ((index = tracks.indexOf(ws)) >= 0) {
-        tracks.splice(index, 1);
-        console.log('Remove TRACK client');
-    } else {
-        // Unknowm socket
-        console.log('Could not remove client (Unkown client)');
-    }
+function translate_gyro(angle) {
+    return angle / 10;
 }
 
-function websocket_handler(ws, message) {
-
-    if (message[0] != '{' && message[message.length - 1] != '}') {
-        assemble_raw(message);
-    } else {
-        var msg = JSON.parse(message);
-
-        switch (msg.type) {
-            case "identity":
-                add_client(ws, msg.data.type, msg.data.id);
-                console.log('Identity: Type: %s, ID: %s', msg.data.type, msg.data.id);
-                break;
-            case "telemetry":
-                broadcast_telemetrics(message);
-                console.log('Telemetry: car_id: %s, speed: %s, rpm: %s, gforce ',
-                    msg.data.id, msg.data.speed, msg.data.rpm, msg.data.gforce);
-                break;
-            case "track-info":
-                console.log('Track-info: track_id: %s, car_id: %s, status: %s',
-                    msg.data.track_id, msg.data.car_id, msg.data.status);
-                break;
-            case "lap-info":
-                console.log('Lap-info: track #%s, lap time: %s',
-                    msg.data.track_id, msg.data.time);
-                break;
-            default:
-                console.log('Unknown message!');
-                break;
-        }
-    }
+function calc_speed(dr, dt) {
+    // return speed in cm/s
+    return dt == 0 ? 0:(10 * (dr * 0.0672) / (dt * 0.000000125));
 }
+
+//var ts = new TelemetryServer(null, 80);
+//ts.init();
+
+module.exports = TelemetryServer;

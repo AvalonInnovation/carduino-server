@@ -1,4 +1,6 @@
+var util = require('util');
 var SerialPort = require('serialport');
+
 var POLL_INTERVAL = 1000; // ms
 var CAR_TIMEOUT = 10000; //ms
 
@@ -19,6 +21,7 @@ function TrackController(identifier, baudRate) {
     this.baudRate = baudRate;
     this.identity = identifier;
 }
+util.inherits(TrackController, new require('events').EventEmitter);
 
 TrackController.prototype.get_track_id = function(car_id) {
     for (var i = 0; i < this.tracks.length; i++) {
@@ -42,19 +45,11 @@ TrackController.prototype.reset = function() {
 }
 
 TrackController.prototype.init = function() {
+    console.log("TrackController: Initializing...");
     SerialPort.list(this.probe_serial.bind(this));
 }
 
-// Add event listener to every track
-TrackController.prototype.add_event_listener = function(listener) {
-    for (var i = 0; i < this.tracks.length; i++) {
-        this.tracks[i].register_handler(listener);
-    }
-}
-
 TrackController.prototype.probe_serial = function(err, ports) {
-    console.log("Probing serial ports.. Found %d ports", ports.length);
-
     for (var i = 0; i < ports.length; i++) {
         var port = ports[i];
         if (port.manufacturer != null) {
@@ -62,20 +57,26 @@ TrackController.prototype.probe_serial = function(err, ports) {
                 var track = new Track();
                 track.comName = port.comName;
                 track.baudRate = this.baudRate;
+                track.on("laptime", this.laptime_handler);
                 this.tracks.push(track);
-                console.log("Added track comport: %s (%s)", port.comName, port.manufacturer);
             }
         }
     }
 
     if (this.tracks.length > 0) {
         // Initilize track communication
+        console.log("TrackController: Found %d tracks, initializing...");
         for (var i = 0; i < this.tracks.length; i++) {
             this.tracks[i].init();
         }
     } else {
-        console.log("No tracks found, please check serial ports..");
+        console.log("TrackController: No tracks found, please check serial ports!");
     }
+}
+
+// Relay event to higher levels
+TrackController.prototype.laptime_handler = function(track) {
+    this.emit("laptime", track);
 }
 
 // Track object holding information about a track
@@ -86,7 +87,7 @@ function Track() {
     this.track_id = 0;
     this.car_id = 0;
     this.prog_id = "";
-    this.version = 0;
+    this.prog_rev = 0;
     this.carState = 0;
     this.raceState = 0;
     this.timestamp = 0;
@@ -95,12 +96,13 @@ function Track() {
     this.laptimes = [];
     this.laphandlers = [];
 }
+util.inherits(Track, new require('events').EventEmitter);
 
 Track.prototype.reset = function() {
     this.track_id = 0;
     this.car_id = 0;
     this.prog_id = "";
-    this.version = 0;
+    this.prog_rev = 0;
     this.conState = 0;
     this.carState = 0;
     this.raceState = 0;
@@ -108,7 +110,6 @@ Track.prototype.reset = function() {
     this.prev_timestamp = 0;
     this.laptime = 0;
     this.laptimes = [];
-    this.laphandlers = [];
 }
 
 // Open communication chanel and register event callbacks
@@ -156,21 +157,14 @@ Track.prototype.send = function(data) {
     });
 }
 
-Track.prototype.register_handler = function(handler) {
-    this.laphandlers.push(handler);
-}
-
 Track.prototype.laptime_event = function(time) {
     if (this.prev_timestamp != 0) {
         // Calculate laptime in ms
         this.laptime = time - this.prev_timestamp;
         this.laptimes.push(this.laptime);
         console.log("Laptime: %d", this.laptime);
-        //Call laptime event handlers
-        for(i = 0; i < this.laphandlers.length; i++) {
-            if(this.laphandlers[i] != null)
-                this.laphandlers[i](this);
-        }
+        //Fire laptime event
+        this.emit("laptime", this);
     }
     this.prev_timestamp = time;
 }
@@ -184,7 +178,7 @@ Track.prototype.receive = function(data) {
                 // TODO: Validate data ??
                 this.car_id = msg[1];
                 this.prog_id = msg[2];
-                this.version = msg[3];
+                this.prog_rev = msg[3];
                 this.carState = 1;
                 this.timestamp = Date.now();
             } else {

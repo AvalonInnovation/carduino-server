@@ -1,7 +1,6 @@
 var readline = require('readline');
 var RaceController = require('./race_control');
 var raceCtrl = new RaceController();
-
 //Initialize the CLI
 var cli = readline.createInterface({
     input: process.stdin,
@@ -9,37 +8,43 @@ var cli = readline.createInterface({
     terminal: false
 });
 
-cli.on('line', function(line) {
-    if (line != "") {
-        cli_handler(line);
-    }
-});
-
 /* Commands from CLI */
 function cli_handler(cmd) {
     console.log('Executing command %s', cmd);
-    if (cmd == "START") {
-        /*tracks.forEach(function(ws) {
-            var msg = msg_request;
-            msg.data.type = "start"
-            ws.send(JSON.stringify(msg));
-        });*/
-        raceCtrl.start();
-    } else if (cmd == "STOP") {
-        /*tracks.forEach(function(ws) {
-            var msg = msg_request;
-            msg.data.type = "stop"
-            ws.send(JSON.stringify(msg));
-        });*/
-        raceCtrl.stop();
-    } else if (cmd == "RESET") {
-        /*tracks.forEach(function(ws) {
-            var msg = msg_request;
-            msg.data.type = "restart"
-            ws.send(JSON.stringify(msg));
-        });*/
-        raceCtrl.reset();
-    } else {
-        // Unknown command
+    switch (cmd) {
+        case 'STATUS':
+            raceCtrl.start();
+            break;
+        case 'START':
+            raceCtrl.start();
+            break;
+        case 'STOP':
+            raceCtrl.stop();
+            break;
+        case 'RESET':
+            raceCtrl.reset();
+            break;
+        case 'ENABLE':
+            raceCtrl.enable();
+            break;
+        case 'DISABEL':
+            raceCtrl.disable();
+            break;
+        default:
+            console.log('Unknown CLI command');
     }
 }
+
+function main() {
+
+    cli.on('line', function(line) {
+        if (line != '') {
+            cli_handler(line);
+        }
+    });
+
+    raceCtrl.init();
+}
+
+// Main application entry point
+main();

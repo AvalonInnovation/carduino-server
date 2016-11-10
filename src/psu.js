@@ -13,27 +13,11 @@ function PSUController(identifier, baudRate) {
 }
 
 PSUController.prototype.init = function() {
+    console.log("PSUController: Initializing...");
     SerialPort.list(this.probe_serial.bind(this));
 }
 
-PSUController.prototype.register_handler = function(handler) {
-    this.event_handlers.push(handler);
-}
-
-PSUController.prototype.ready = function() {
-    this.ready_device++;
-    if (this.psus.length == this.ready_device) {
-        this.state = "READY";
-        // Call all event handlers
-        for (var i = 0; i < this.event_handlers.length; i++) {
-            this.event_handlers[i]();
-        }
-    }
-}
-
 PSUController.prototype.probe_serial = function(err, ports) {
-    console.log("Probing serial ports.. Found %d ports", ports.length);
-
     for (var i = 0; i < ports.length; i++) {
         var port = ports[i];
         if (port.manufacturer != null) {
@@ -42,18 +26,18 @@ PSUController.prototype.probe_serial = function(err, ports) {
                 psu.comName = port.comName;
                 psu.baudRate = this.baudRate;
                 this.psus.push(psu);
-                console.log("Added psu comport: %s (%s)", port.comName, port.manufacturer);
             }
         }
     }
 
     if (this.psus.length > 0) {
         // Initilize psu communication
+        console.log("PSUController: Found %d PSUs, initializing...");
         for (var i = 0; i < this.psus.length; i++) {
-            this.psus[i].init(this);
+            this.psus[i].init();
         }
     } else {
-        console.log("No PSU found, please check serial ports..");
+        console.log("PSUController: No PSUs found, please check serial ports!");
     }
 }
 
@@ -108,6 +92,7 @@ function PSU() {
     this.comName = null;
     this.port = null;
     this.baudRate = 0;
+    this.online = false;
     this.last_req = null;
     this.serial_busy = 0;
     this.current = 0.0;
@@ -115,12 +100,13 @@ function PSU() {
     this.enabled = false;
     this.send_queue = [];
 }
+//util.inherits(PSU, new require('events').EventEmitter);
 
 // Open communication chanel and register event callbacks
-PSU.prototype.init = function(ctrl) {
+PSU.prototype.init = function() {
     var self = this;
     if (this.comName == null) {
-        console.log("Could not initialize psu communication, no port found.");
+        console.log("PSU: Could not initialize psu communication, no port found.");
         return;
     }
 
@@ -132,8 +118,11 @@ PSU.prototype.init = function(ctrl) {
 
     // Register open callback
     this.port.on('open', function() {
-        console.log("OPENED: %s @ %d", self.comName, self.baudRate);
-        ctrl.ready();
+        console.log("PSU: OPENED: %s @ %d", self.comName, self.baudRate);
+        //self.disable();
+        self.set_voltage(6.0);
+        self.set_current(0.5);
+        self.enable();
     });
 
     // Register data received callback
@@ -211,6 +200,7 @@ PSU.prototype.receive = function(data) {
             console.log('Unknown PSU response');
             break;
     }
+    this.online = true;
     console.log("DBG: Response: %s", resp);
 }
 
@@ -228,4 +218,4 @@ function handler() {
 }
 */
 
-module.exports = PSU;
+module.exports = PSUController;
