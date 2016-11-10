@@ -12,22 +12,22 @@ var cli = readline.createInterface({
 function cli_handler(cmd) {
     console.log('Executing command %s', cmd);
     switch (cmd) {
-        case 'STATUS':
+        case 'status':
             raceCtrl.start();
             break;
-        case 'START':
+        case 'start':
             raceCtrl.start();
             break;
-        case 'STOP':
+        case 'stop':
             raceCtrl.stop();
             break;
-        case 'RESET':
+        case 'reset':
             raceCtrl.reset();
             break;
-        case 'ENABLE':
+        case 'enable':
             raceCtrl.enable();
             break;
-        case 'DISABEL':
+        case 'disable':
             raceCtrl.disable();
             break;
         default:

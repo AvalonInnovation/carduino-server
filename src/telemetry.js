@@ -47,7 +47,7 @@ function WSClient(ws) {
     this.ws = ws;
     this.id = "";
     this.type = ""; // car, frontend
-    this.prev_raw = JSON.parse(JSON.stringify(telemetry_raw));
+    this.prev_data = [];
     this.raw_str = "";
 }
 util.inherits(WSClient, new require('events').EventEmitter);
@@ -94,7 +94,6 @@ TelemetryServer.prototype.handle_message = function(message) {
 TelemetryServer.prototype.broadcast = function(message) {
     if (this.clients.length > 0) {
         var json = JSON.stringify(message);
-        console.log('Broadcast: %s', json);
         this.clients.forEach(function(client) {
             if(client.type == 'frontend') {
                 client.ws.send(json);
@@ -155,8 +154,7 @@ WSClient.prototype.assemble_raw = function(msg) {
     var c;
 
     for (var i = 0; i < msg.length; i++) {
-        //c = String.fromCharCode(msg[i]);
-        c = msg[i]; //DBG ONLY!
+        c = String.fromCharCode(msg[i]);
         this.raw_str += c;
         if (c == '!') {
             this.handle_raw(this.raw_str);
@@ -167,52 +165,43 @@ WSClient.prototype.assemble_raw = function(msg) {
     }
 }
 
+//#5T442605I19F0R0S123X38Y-123Z2054U7V-58W-22!
+
 WSClient.prototype.handle_raw = function(message) {
+    var data = [];
+    var raw = message.match(/([A-Z#]-?\d+)/g);
 
-    var data = message.match(/(-?\d+)/g);
-
-    var raw = JSON.parse(JSON.stringify(telemetry_raw));
-    var msg = JSON.parse(JSON.stringify(telemetry));
-
-    if (data.length == 12) {
-        raw.data.id = data[0];
-        raw.data.time = data[1];
-        raw.data.enc_f = data[2];
-        raw.data.enc_r = data[3];
-        raw.data.acc_x = data[4];
-        raw.data.acc_y = data[5];
-        raw.data.acc_z = data[6];
-        raw.data.gyro_u = data[7];
-        raw.data.gyro_v = data[8];
-        raw.data.gyro_w = data[9];
-        raw.data.current = data[10];
-        raw.data.speed = data[11];
-
-        /*console.log('id:%d, t:%d, ef:%d, er:%d, x:%d, y:%d, z:%d, u:%d, v:%d, w:%d, c:%d, s:%d', data[0],
-            raw.data.time,
-            raw.data.enc_f,
-            raw.data.enc_r,
-            raw.data.acc_x,
-            raw.data.acc_y,
-            raw.data.acc_z,
-            raw.data.gyro_u,
-            raw.data.gyro_v,
-            raw.data.gyro_w,
-            raw.data.current,
-            raw.data.speed);*/
-
-        msg.data.id = raw.data.id;
-        msg.data.time = Date.now();
-        msg.data.acc_x = translate_acc(raw.data.acc_x);
-        msg.data.acc_y = translate_acc(raw.data.acc_y);
-        msg.data.gyro = translate_gyro(raw.data.gyro_w);
-
-        msg.data.speed = calc_speed(raw.data.enc_r - this.prev_raw.data.enc_r, raw.data.time - this.prev_raw.data.time);
-        // Fire new message event
-        this.emit('message', msg);
-        //broadcast_telemetrics(msg);
-        this.prev_raw = raw;
+    // Convert raw string message into associative array
+    for(var i = 0; i < raw.length; i++) {
+        data[raw[i][0]] = raw[i].substring(1);
     }
+
+    var msg = JSON.parse(JSON.stringify(telemetry));
+    msg.data.id = data['#'];
+    msg.data.time = Date.now();
+    msg.data.acc_x = translate_acc(data['X']);
+    msg.data.acc_y = translate_acc(data['Y']);
+    msg.data.gyro = translate_gyro(data['W']);
+    msg.data.speed = calc_speed(data['R'] - this.prev_data['R'], this.prev_data['T'], data['T']);
+
+    // Fire new message event
+    this.emit('message', msg);
+
+    // Store values for future processing
+    this.prev_data = data;
+
+    /*console.log('id:%d, t:%d, ef:%d, er:%d, x:%d, y:%d, z:%d, u:%d, v:%d, w:%d, c:%d, s:%d', data[0],
+        raw.data.time,
+        raw.data.enc_f,
+        raw.data.enc_r,
+        raw.data.acc_x,
+        raw.data.acc_y,
+        raw.data.acc_z,
+        raw.data.gyro_u,
+        raw.data.gyro_v,
+        raw.data.gyro_w,
+        raw.data.current,
+        raw.data.speed);*/
 }
 
 function translate_acc(coord) {
@@ -223,9 +212,15 @@ function translate_gyro(angle) {
     return angle / 10;
 }
 
-function calc_speed(dr, dt) {
+function calc_speed(dr, t1, t2) {
+    var dt = 0;
+    if(t1 > t2) {
+        dt = (4294967295/8000) - (t1 - t2);
+    } else {
+        dt = t2 - t1;
+    }
     // return speed in cm/s
-    return dt == 0 ? 0:(10 * (dr * 0.0672) / (dt * 0.000000125));
+    return dt == 0 ? 0:((dr * 6.72) / (dt * 0.001));
 }
 
 //var ts = new TelemetryServer(null, 80);

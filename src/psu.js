@@ -1,6 +1,6 @@
 var SerialPort = require('serialport');
 
-var SEND_INTERVAL = 1000;
+var SEND_INTERVAL = 50;
 
 // PSUController, handling the PSU units in the system
 function PSUController(identifier, baudRate) {
@@ -32,7 +32,7 @@ PSUController.prototype.probe_serial = function(err, ports) {
 
     if (this.psus.length > 0) {
         // Initilize psu communication
-        console.log("PSUController: Found %d PSUs, initializing...");
+        console.log("PSUController: Found %d PSUs, initializing...", this.psus.length);
         for (var i = 0; i < this.psus.length; i++) {
             this.psus[i].init();
         }

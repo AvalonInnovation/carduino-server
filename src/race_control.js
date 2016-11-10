@@ -1,5 +1,6 @@
 var TelemetryServer = require('./telemetry');
 var TrackController = require('./track');
+var CarController = require('./car');
 var PSUController = require('./psu');
 var Backend = require('./backend');
 
@@ -13,13 +14,13 @@ var HIGH_VOLTAGE = 12.0;
 var CURRENT_LIMIT = 0.5;
 
 var lapinfo = {
-    "protocolVersion": 1.0,
-    "lane": 0,
-    "timestamp": 0,
-    "laptime": 0,
-    "carID": 0,
-    "programmerID": 0,
-    "controlProgramRevision": 0,
+    "protocolVersion": "0.0.1",
+    "lane": "0",
+    "timestamp": "0",
+    "laptime": "0",
+    "carID": "0",
+    "programmerID": "0",
+    "controlProgramRevision": "0",
     /*        "maxSpeed":0,
             "maxAccel":0,
             "maxDecel":0,
@@ -35,18 +36,21 @@ function RaceController() {
 
     this.psuCtrl = new PSUController("USB_Vir", 9600);
     this.trackCtrl = new TrackController("Arduino_LLC", 38400);
-    this.telemetryServer = new TelemetryServer("localhost", 80);
-    this.backend = new Backend('carduino-webserver.local', '/api/lap');
+    this.carCtrl = new CarController("FTDI", 38400);
+    this.telemetry = new TelemetryServer("localhost", 80);
+    this.backend = new Backend('192.168.0.111', '/api/lap');
 }
 
 RaceController.prototype.init = function() {
     //if (this.state == RC_STATE_UNINITIALIZED || this.state = RC_STATE_RACE_STOPPED) {
         this.psuCtrl.init();
         this.trackCtrl.init();
-        this.telemetryServer.init();
+        this.carCtrl.init();
+        this.telemetry.init();
         //this.backend.init();
-        this.trackCtrl.on("lapevent", this.lapevent_handler.bind(this));
-        this.telemetryServer.on("message", this.telemetry_handler.bind(this));
+        this.trackCtrl.on("laptime", this.laptime_handler.bind(this));
+        this.telemetry.on("message", this.telemetry_handler.bind(this));
+        this.carCtrl.on("message", this.telemetry_handler.bind(this));
         // Enable low voltage on PSU
         this.state = RC_STATE_INITIALIZED;
     //}
@@ -56,18 +60,18 @@ RaceController.prototype.telemetry_handler = function(message) {
     // Convert car id to track id
     message.data.id = this.trackCtrl.get_track_id(message.data.id);
     //broadcast message
-    this.telemetryServer.broadcast(message);
+    this.telemetry.broadcast(message);
 }
 
-RaceController.prototype.lapevent_handler = function(track) {
+RaceController.prototype.laptime_handler = function(track) {
     var msg = JSON.parse(JSON.stringify(lapinfo));
 
-    msg.lane = track.track_id;
-    msg.carID = track.car_id;
-    msg.laptime = track.laptime;
-    msg.programmerID = track.prog_id;
-    msg.controlProgramRevision = track.prog_rev;
-    msg.timestamp = Date.now();
+    msg.lane = track.track_id.toString();
+    msg.carID = track.car_id.toString();
+    msg.laptime = (track.laptime/1000).toFixed(3).toString();
+    msg.programmerID = track.prog_id.toString();
+    msg.controlProgramRevision = track.prog_rev.toString();
+    msg.timestamp = new Date().toISOString();
 
     this.backend.send(msg);
 }
@@ -131,9 +135,6 @@ RaceController.prototype.disable = function() {
 }
 
 RaceController.prototype.status = function() {
-    //this.trackCtrl
-    //this.
-
 
     if (this.state == RC_STATE_RACE_STARTED) {
         if (this.check_precond()) {
@@ -148,19 +149,19 @@ RaceController.prototype.status = function() {
 
 RaceController.prototype.check_precond = function() {
     // Check that PSU:s are online @ low voltage
-    if (!PSUController.check_voltage(LOW_VOLTAGE)) {
+    if (!this.psuCtrl.check_voltage(LOW_VOLTAGE)) {
         console.log("Pre-check failed: PSU not att correct voltage");
         return false;
     }
 
     // Check that the tracks are online
-    if (!trackCtrl.check_tracks()) {
+    if (!this.trackCtrl.check_tracks()) {
         console.log("Pre-check failed: Tracks are not online");
         return false;
     }
 
     // Check that the cars are online
-    if (!trackCtrl.check_cars()) {
+    if (!this.trackCtrl.check_cars()) {
         console.log("Pre-check failed: Cars are not online");
         return false;
     }

@@ -1,8 +1,8 @@
 var util = require('util');
 var SerialPort = require('serialport');
 
-var POLL_INTERVAL = 1000; // ms
-var CAR_TIMEOUT = 10000; //ms
+var POLL_INTERVAL = 100; // ms
+var CAR_TIMEOUT = 1000; //ms
 
 /*
  1. Open serial port to tracks
@@ -17,7 +17,6 @@ var CAR_TIMEOUT = 10000; //ms
 // TrackController object, handling the different tracks in the system
 function TrackController(identifier, baudRate) {
     this.tracks = [];
-    this.state = 66; //UNINITIALIZED;
     this.baudRate = baudRate;
     this.identity = identifier;
 }
@@ -57,7 +56,7 @@ TrackController.prototype.probe_serial = function(err, ports) {
                 var track = new Track();
                 track.comName = port.comName;
                 track.baudRate = this.baudRate;
-                track.on("laptime", this.laptime_handler);
+                track.on("laptime", this.laptime_handler.bind(this));
                 this.tracks.push(track);
             }
         }
@@ -65,7 +64,7 @@ TrackController.prototype.probe_serial = function(err, ports) {
 
     if (this.tracks.length > 0) {
         // Initilize track communication
-        console.log("TrackController: Found %d tracks, initializing...");
+        console.log("TrackController: Found %d tracks, initializing...", this.tracks.length);
         for (var i = 0; i < this.tracks.length; i++) {
             this.tracks[i].init();
         }
@@ -94,7 +93,6 @@ function Track() {
     this.prev_timestamp = 0;
     this.laptime = 0;
     this.laptimes = [];
-    this.laphandlers = [];
 }
 util.inherits(Track, new require('events').EventEmitter);
 
@@ -117,7 +115,7 @@ Track.prototype.init = function() {
     var self = this;
 
     if (this.comName == null) {
-        console.log("Could not initialize Track communication, no port found.");
+        console.log("Track: Could not initialize Track communication, no port found.");
         return;
     }
     // Open serial port
@@ -128,7 +126,7 @@ Track.prototype.init = function() {
 
     // Register open callback
     this.port.on('open', function() {
-        console.log("OPENED: %s @ %d", self.comName, self.baudRate);
+        console.log("Track: OPENED: %s @ %d", self.comName, self.baudRate);
         self.conState = 1;
         setInterval(self.check_status.bind(self), POLL_INTERVAL);
     });
@@ -141,7 +139,7 @@ Track.prototype.check_status = function() {
     if (this.raceState != 1 && this.carState == 1) {
         if (Date.now() - this.timestamp > CAR_TIMEOUT) {
             this.carState = 0;
-            console.log("LOST CAR");
+            console.log("Track#%d: Car offline", this.track_id);
         }
     }
     //console.log("STATUS - TRACK: %s, CAR: %s", this.track_id, this.carState ? "OK" : "NOK");
@@ -153,7 +151,6 @@ Track.prototype.send = function(data) {
         if (err) {
             return console.log('Error on write: ', err.message);
         }
-        console.log('message written');
     });
 }
 
@@ -179,7 +176,10 @@ Track.prototype.receive = function(data) {
                 this.car_id = msg[1];
                 this.prog_id = msg[2];
                 this.prog_rev = msg[3];
-                this.carState = 1;
+                if(this.carState == 0) {
+                    this.carState = 1;
+                    console.log("Track#%d: Car online", this.track_id);
+                }
                 this.timestamp = Date.now();
             } else {
                 console.log('Malformed CID command');

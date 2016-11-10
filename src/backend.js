@@ -7,12 +7,13 @@ function Backend(addr, url) {
 
 Backend.prototype.send = function(data) {
     request.post(
-        this.addr + '/' + url, {
-            json: JSON.stringify(data)
+        'http://' + this.addr + this.url, {
+            json: true,
+            body: data,
         },
         function(error, response, body) {
-            if (!error && response.statusCode == 200) {
-                console.log(body)
+            if (error) {
+                console.log('Backend: Error ' + body)
             }
         }
     );
