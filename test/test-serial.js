@@ -1,4 +1,7 @@
+var util = require('util');
 var SerialPort = require('serialport');
+var Backend = require('../src/backend');
+
 var POLL_INTERVAL = 1000; // ms
 var CAR_TIMEOUT = 10000; //ms
 
@@ -13,11 +16,12 @@ var CAR_TIMEOUT = 10000; //ms
 */
 
 // TrackController object, handling the different tracks in the system
-function TrackController() {
+function TrackController(identifier, baudRate) {
     this.tracks = [];
-    this.state = 66; //UNINITIALIZED;
-    this.identity_str = "Arduino_LLC";
+    this.baudRate = baudRate;
+    this.identity = identifier;
 }
+util.inherits(TrackController, new require('events').EventEmitter);
 
 TrackController.prototype.get_track_id = function(car_id) {
     for (var i = 0; i < this.tracks.length; i++) {
@@ -41,34 +45,40 @@ TrackController.prototype.reset = function() {
 }
 
 TrackController.prototype.init = function() {
+    console.log("TrackController: Initializing...");
     SerialPort.list(this.probe_serial.bind(this));
 }
 
 TrackController.prototype.probe_serial = function(err, ports) {
-    console.log("Probing serial ports.. Found %d ports", ports.length);
-
     for (var i = 0; i < ports.length; i++) {
         var port = ports[i];
         if (port.manufacturer != null) {
             if (port.manufacturer.search("FTDI") >= 0) {
-                if(port.comName.search("/dev/ttyUSB0") >= 0) {
-                var track = new Track();
-                track.comName = port.comName;
-                this.tracks.push(track);
-                console.log("Added track comport: %s (%s)", port.comName, port.manufacturer);
-            }
+                if (port.comName.search("/dev/ttyUSB0") >= 0) {
+                    var track = new Track();
+                    track.comName = port.comName;
+                    track.baudRate = this.baudRate;
+                    track.on("laptime", this.laptime_handler.bind(this));
+                    this.tracks.push(track);
+                }
             }
         }
     }
 
-    if (this.tracks.length != 1) {
-        console.log("Could not find two tracks, please check serialports..");
-    } else {
+    if (this.tracks.length > 0) {
         // Initilize track communication
+        console.log("TrackController: Found %d tracks, initializing...", this.tracks.length);
         for (var i = 0; i < this.tracks.length; i++) {
             this.tracks[i].init();
         }
+    } else {
+        console.log("TrackController: No tracks found, please check serial ports!");
     }
+}
+
+// Relay event to higher levels
+TrackController.prototype.laptime_handler = function(track) {
+    this.emit("laptime", track);
 }
 
 // Track object holding information about a track
@@ -79,7 +89,7 @@ function Track() {
     this.track_id = 0;
     this.car_id = 0;
     this.prog_id = "";
-    this.version = 0;
+    this.prog_rev = 0;
     this.carState = 0;
     this.raceState = 0;
     this.timestamp = 0;
@@ -87,12 +97,13 @@ function Track() {
     this.laptime = 0;
     this.laptimes = [];
 }
+util.inherits(Track, new require('events').EventEmitter);
 
 Track.prototype.reset = function() {
     this.track_id = 0;
     this.car_id = 0;
     this.prog_id = "";
-    this.version = 0;
+    this.prog_rev = 0;
     this.conState = 0;
     this.carState = 0;
     this.raceState = 0;
@@ -107,19 +118,20 @@ Track.prototype.init = function() {
     var self = this;
 
     if (this.comName == null) {
-        console.log("Could not initialize Track communication, no port found.");
+        console.log("Track: Could not initialize Track communication, no port found.");
         return;
     }
+
     // Open serial port
     this.port = new SerialPort(this.comName, {
         baudRate: this.baudRate,
-        parser:  SerialPort.parsers.readline('\r') //SerialPort.parsers.raw
+        parser: SerialPort.parsers.readline('\r') //SerialPort.parsers.raw
     });
 
     // Register open callback
     this.port.on('open', function() {
-        console.log("OPENED: %s @ %d", self.comName, self.baudRate);
-        conState = 1;
+        console.log("Track: OPENED: %s @ %d", self.comName, self.baudRate);
+        self.conState = 1;
         setInterval(self.check_status.bind(self), POLL_INTERVAL);
     });
 
@@ -131,10 +143,10 @@ Track.prototype.check_status = function() {
     if (this.raceState != 1 && this.carState == 1) {
         if (Date.now() - this.timestamp > CAR_TIMEOUT) {
             this.carState = 0;
-            console.log("LOST CAR");
+            console.log("Track#%d: Car offline", this.track_id);
         }
     }
-    console.log("STATUS - TRACK: %s, CAR: %s", this.track_id, this.carState ? "OK":"NOK");
+    //console.log("STATUS - TRACK: %s, CAR: %s", this.track_id, this.carState ? "OK" : "NOK");
 }
 
 // Send function
@@ -143,7 +155,6 @@ Track.prototype.send = function(data) {
         if (err) {
             return console.log('Error on write: ', err.message);
         }
-        console.log('message written');
     });
 }
 
@@ -153,7 +164,8 @@ Track.prototype.laptime_event = function(time) {
         this.laptime = time - this.prev_timestamp;
         this.laptimes.push(this.laptime);
         console.log("Laptime: %d", this.laptime);
-        //Trigger laptime event
+        //Fire laptime event
+        this.emit("laptime", this);
     }
     this.prev_timestamp = time;
 }
@@ -162,12 +174,16 @@ Track.prototype.laptime_event = function(time) {
 Track.prototype.receive = function(data) {
     var msg = data.split(':');
     switch (msg[0]) {
-        case 'CID': // Car Info CID:23:test@example.com:7
+        case 'CID':
             if (msg.length == 4) {
+                // TODO: Validate data
                 this.car_id = msg[1];
                 this.prog_id = msg[2];
-                this.version = msg[3];
-                this.carState = 1;
+                this.prog_rev = msg[3];
+                if(this.carState == 0) {
+                    this.carState = 1;
+                    console.log("Track#%d: Car online", this.track_id);
+                }
                 this.timestamp = Date.now();
             } else {
                 console.log('Malformed CID command');
@@ -183,9 +199,8 @@ Track.prototype.receive = function(data) {
                 console.log('Malformed TID command');
             }
             break;
-        case 'LAP': // Laptime event LAP:2
-            // Check track id?
-            //if(this.track_id == msg[])
+        case 'LAP':
+            // TODO: Check track id
             if (msg.length == 2) {
                 this.laptime_event(Date.now());
             } else {
@@ -208,7 +223,40 @@ Arduino_LLC
 usb-FTDI_FT232R_USB_UART_A104VBY7-if00-port0
 FTDI
 */
-var trackCtrl = new TrackController();
+var trackCtrl = new TrackController('FTDI', 38400);
+var backend = new Backend('192.168.0.111', '/api/lap');
 trackCtrl.init();
+trackCtrl.on("laptime", handler);
+
+var lapinfo = {
+    "protocolVersion": "0.0.1",
+    "lane": "0",
+    "timestamp": "0",
+    "laptime": "0",
+    "carID": "0",
+    "programmerID": "0",
+    "controlProgramRevision": "0",
+    /*        "maxSpeed":0,
+            "maxAccel":0,
+            "maxDecel":0,
+            "maxLateral":0,
+            "maxTurn":0,
+            "inttime":0,*/
+}
+
+//CID:77:draupner1@gmail.com:3
+
+function handler(track) {
+    console.log("Sending laptime to backend!");
+    var msg = JSON.parse(JSON.stringify(lapinfo));
+
+    msg.carID = track.car_id.toString();
+    msg.laptime = (track.laptime/1000).toFixed(3).toString();
+    msg.programmerID = track.prog_id.toString();
+    msg.controlProgramRevision = track.prog_rev.toString();
+    msg.timestamp = new Date().toISOString();
+
+    backend.send(msg);
+}
 
 module.exports = TrackController;
