@@ -1,9 +1,6 @@
 var util = require('util');
 var SerialPort = require('serialport');
 
-var POLL_INTERVAL = 100; // ms
-var CAR_TIMEOUT = 1000; //ms
-
 /*
  1. Open serial port to tracks
  2. Register receive handler and start check_car interval
@@ -15,10 +12,12 @@ var CAR_TIMEOUT = 1000; //ms
 */
 
 // TrackController object, handling the different tracks in the system
-function TrackController(identifier, baudRate) {
+function TrackController(config) {
     this.tracks = [];
-    this.baudRate = baudRate;
-    this.identity = identifier;
+    this.baudRate = config.baudRate;
+    this.identity = config.vendor;
+    this.pollInterval = config.pollInterval;
+    this.carTimeout = config.carTimeout;
 }
 util.inherits(TrackController, new require('events').EventEmitter);
 
@@ -81,8 +80,8 @@ TrackController.prototype.laptime_handler = function(track) {
 // Track object holding information about a track
 function Track() {
     this.comName = null;
-    this.port = null;
-    this.baudRate = 38400;
+    this.port = 0;
+    this.baudRate = 0;
     this.track_id = 0;
     this.car_id = 0;
     this.prog_id = "";
@@ -128,7 +127,7 @@ Track.prototype.init = function() {
     this.port.on('open', function() {
         console.log("Track: OPENED: %s @ %d", self.comName, self.baudRate);
         self.conState = 1;
-        setInterval(self.check_status.bind(self), POLL_INTERVAL);
+        setInterval(self.check_status.bind(self), this.pollInterval);
     });
 
     // Register data received callback
@@ -137,7 +136,7 @@ Track.prototype.init = function() {
 
 Track.prototype.check_status = function() {
     if (this.raceState != 1 && this.carState == 1) {
-        if (Date.now() - this.timestamp > CAR_TIMEOUT) {
+        if (Date.now() - this.timestamp > this.carTimeout) {
             this.carState = 0;
             console.log("Track#%d: Car offline", this.track_id);
         }

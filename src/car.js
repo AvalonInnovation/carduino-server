@@ -1,9 +1,6 @@
 var util = require('util');
 var SerialPort = require('serialport');
 
-var POLL_INTERVAL = 100; // ms
-var CAR_TIMEOUT = 1000; //ms
-
 var telemetry = {
     "type": "telemetry",
     "data": {
@@ -19,10 +16,12 @@ var telemetry = {
 }
 
 // CarController object, handling the cars in the system
-function CarController(identifier, baudRate) {
+function CarController(config) {
     this.cars = [];
-    this.baudRate = baudRate;
-    this.identity = identifier;
+    this.baudRate = config.baudRate;
+    this.identity = config.vendor;
+    this.pollInterval = config.pollInterval;
+    this.carTimeout = config.carTimeout;
 }
 util.inherits(CarController, new require('events').EventEmitter);
 
@@ -66,7 +65,7 @@ CarController.prototype.message_handler = function(message) {
 function Car() {
     this.comName = null;
     this.port = null;
-    this.baudRate = 38400;
+    this.baudRate = 0;
     this.prev_data = [];
     this.car_id = 0;
     this.carState = 0;
@@ -95,14 +94,14 @@ Car.prototype.init = function() {
     // Open serial port
     this.port = new SerialPort(this.comName, {
         baudRate: this.baudRate,
-        parser: SerialPort.parsers.readline('\r\n') //SerialPort.parsers.raw
+        parser: SerialPort.parsers.readline('\r\n')
     });
 
     // Register open callback
     this.port.on('open', function() {
         console.log("Car: OPENED: %s @ %d", self.comName, self.baudRate);
         self.conState = 1;
-        setInterval(self.check_status.bind(self), POLL_INTERVAL);
+        setInterval(self.check_status.bind(self), self.pollInterval);
     });
 
     // Register data received callback
@@ -112,7 +111,7 @@ Car.prototype.init = function() {
 // Continously checks that car is online
 Car.prototype.check_status = function() {
     if (this.carState == 1) {
-        if (Date.now() - this.timestamp > CAR_TIMEOUT) {
+        if (Date.now() - this.timestamp > this.carTimeout) {
             this.carState = 0;
             console.log('Car#%d: Offline', this.prev_data['#']);
         }

@@ -21,24 +21,24 @@ var lapinfo = {
     "carID": "0",
     "programmerID": "0",
     "controlProgramRevision": "0",
-    /*        "maxSpeed":0,
-            "maxAccel":0,
-            "maxDecel":0,
-            "maxLateral":0,
-            "maxTurn":0,
-            "inttime":0,*/
+/*  "maxSpeed":0,
+    "maxAccel":0,
+    "maxDecel":0,
+    "maxLateral":0,
+    "maxTurn":0,
+    "inttime":0 */
 }
 
-function RaceController() {
+function RaceController(config) {
     this.state = RC_STATE_UNINITIALIZED;
     this.current_laps = 0;
     this.max_laps = 0;
 
-    this.psuCtrl = new PSUController("USB_Vir", 9600);
-    this.trackCtrl = new TrackController("Arduino_LLC", 38400);
-    this.carCtrl = new CarController("FTDI", 38400);
-    this.telemetry = new TelemetryServer("localhost", 80);
-    this.backend = new Backend('192.168.0.111', '/api/lap');
+    this.psuCtrl = new PSUController(config.psu);
+    this.trackCtrl = new TrackController(config.track);
+    this.carCtrl = new CarController(config.car);
+    this.telemetry = new TelemetryServer(config.websocket);
+    this.backend = new Backend(config.backend);
 }
 
 RaceController.prototype.init = function() {
@@ -47,11 +47,11 @@ RaceController.prototype.init = function() {
         this.trackCtrl.init();
         this.carCtrl.init();
         this.telemetry.init();
-        //this.backend.init();
+
         this.trackCtrl.on("laptime", this.laptime_handler.bind(this));
         this.telemetry.on("message", this.telemetry_handler.bind(this));
         this.carCtrl.on("message", this.telemetry_handler.bind(this));
-        // Enable low voltage on PSU
+
         this.state = RC_STATE_INITIALIZED;
     //}
 }
@@ -59,7 +59,7 @@ RaceController.prototype.init = function() {
 RaceController.prototype.telemetry_handler = function(message) {
     // Convert car id to track id
     message.data.id = this.trackCtrl.get_track_id(message.data.id);
-    //broadcast message
+    // Broadcast message
     this.telemetry.broadcast(message);
 }
 
@@ -94,7 +94,7 @@ RaceController.prototype.start = function() {
             this.state = RC_STATE_RACE_STARTED;
         }
     } else {
-        console.log("Could not start race");
+        console.log("RaceController: Could not start race");
     }
 }
 
@@ -106,67 +106,46 @@ RaceController.prototype.stop = function() {
             this.state = RC_STATE_RACE_STARTED;
         }
     } else {
-        console.log("Could not stop race, race has not started");
+        console.log("RaceController: Could not stop race, race has not started");
     }
 }
 
 RaceController.prototype.enable = function() {
-    if (this.state == RC_STATE_INITIALIZED) {
-        if (this.check_precond()) {
-            this.psuCtrl.set_current(CURRENT_LIMIT);
-            this.psuCtrl.set_voltage(HIGH_VOLTAGE);
-            this.state = RC_STATE_RACE_STARTED;
-        }
-    } else {
-        console.log("Could not start race");
-    }
+    this.psuCtrl.set_current(CURRENT_LIMIT);
+    this.psuCtrl.set_voltage(HIGH_VOLTAGE);
+    this.psuCtrl.enable();
+    console.log("RaceController: Power enabled");
 }
 
 RaceController.prototype.disable = function() {
-    if (this.state == RC_STATE_INITIALIZED) {
-        if (this.check_precond()) {
-            this.psuCtrl.set_current(CURRENT_LIMIT);
-            this.psuCtrl.set_voltage(HIGH_VOLTAGE);
-            this.state = RC_STATE_RACE_STARTED;
-        }
-    } else {
-        console.log("Could not start race");
-    }
+    this.psuCtrl.disable();
+    console.log("RaceController: Power disabled");
 }
 
 RaceController.prototype.status = function() {
 
-    if (this.state == RC_STATE_RACE_STARTED) {
-        if (this.check_precond()) {
-            this.psuCtrl.set_current(CURRENT_LIMIT);
-            this.psuCtrl.set_voltage(LOW_VOLTAGE);
-            this.state = RC_STATE_RACE_STARTED;
-        }
-    } else {
-        console.log("Could not stop race, race has not started");
-    }
 }
 
 RaceController.prototype.check_precond = function() {
     // Check that PSU:s are online @ low voltage
     if (!this.psuCtrl.check_voltage(LOW_VOLTAGE)) {
-        console.log("Pre-check failed: PSU not att correct voltage");
+        console.log("RaceController: Pre-check failed: PSU not att correct voltage");
         return false;
     }
 
     // Check that the tracks are online
     if (!this.trackCtrl.check_tracks()) {
-        console.log("Pre-check failed: Tracks are not online");
+        console.log("RaceController: Pre-check failed: Tracks are not online");
         return false;
     }
 
     // Check that the cars are online
     if (!this.trackCtrl.check_cars()) {
-        console.log("Pre-check failed: Cars are not online");
+        console.log("RaceController: Pre-check failed: Cars are not online");
         return false;
     }
 
-    console.log("Pre-check OK!");
+    console.log("RaceController: Pre-check OK!");
     return true;
 }
 

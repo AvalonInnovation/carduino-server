@@ -1,13 +1,13 @@
 var request = require('request');
 
-function Backend(addr, url) {
-    this.addr = addr;
-    this.url = url;
+function Backend(config) {
+    this.host = config.host;
+    this.url = config.url;
 }
 
 Backend.prototype.send = function(data) {
     request.post(
-        'http://' + this.addr + this.url, {
+        'http://' + this.host + this.url, {
             json: true,
             body: data,
         },

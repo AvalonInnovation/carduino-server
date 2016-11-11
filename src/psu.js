@@ -1,15 +1,12 @@
 var SerialPort = require('serialport');
 
-var SEND_INTERVAL = 50;
-
 // PSUController, handling the PSU units in the system
-function PSUController(identifier, baudRate) {
+function PSUController(config) {
     this.psus = [];
     this.state = "NA"; //UNINITIALIZED;
-    this.baudRate = baudRate;
-    this.identity = identifier;
-    this.event_handlers = [];
-    this.ready_device = 0;
+    this.baudRate = config.baudRate;
+    this.identity = config.vendor;
+    this.sendInterval = config.sendInterval;
 }
 
 PSUController.prototype.init = function() {
@@ -179,7 +176,7 @@ PSU.prototype.send_worker = function() {
             }
         });
 
-        setTimeout(this.send_worker.bind(this), SEND_INTERVAL);
+        setTimeout(this.send_worker.bind(this), this.sendInterval);
     } else {
         this.serial_busy = false;
     }

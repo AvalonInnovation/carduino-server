@@ -1,6 +1,8 @@
 var readline = require('readline');
 var RaceController = require('./race_control');
-var raceCtrl = new RaceController();
+var config = require('./config.json');
+
+var raceCtrl = new RaceController(config);
 //Initialize the CLI
 var cli = readline.createInterface({
     input: process.stdin,

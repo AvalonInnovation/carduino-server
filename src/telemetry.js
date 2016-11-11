@@ -52,9 +52,9 @@ function WSClient(ws) {
 }
 util.inherits(WSClient, new require('events').EventEmitter);
 
-function TelemetryServer(host, port) {
-    this.host = host;
-    this.port = port;
+function TelemetryServer(config) {
+    this.host = config.host;
+    this.port = config.port;
     this.wss = null;
     this.clients = [];
 }
