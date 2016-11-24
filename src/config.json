@@ -19,12 +19,12 @@
         "psuTimeout": 1000
     },
     "backend": {
-        "host": "carduino-webserver.local",
-        "url": "/api/lap"
+        "host": "localhost",
+        "url": "/api/lap:8080"
     },
     "websocket": {
         "host": "localhost",
-        "port": 80
+        "port": 8081
     },
     "application": {
         "config1": "test_config"

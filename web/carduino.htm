@@ -87,7 +87,7 @@
                 var gyro = [gyro1, gyro2];
                 var speed = [speed1, speed2];
 
-                var ws = new WebSocket('ws://localhost:80/');
+                var ws = new WebSocket('ws://localhost:8081/');
 
                 ws.onopen = function(event) {
                     ws.send(JSON.stringify(identity));
