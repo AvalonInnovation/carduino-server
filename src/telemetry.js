@@ -205,11 +205,11 @@ WSClient.prototype.handle_raw = function(message) {
 }
 
 function translate_acc(coord) {
-    return coord / 10;
+    return coord / 0.5;
 }
 
 function translate_gyro(angle) {
-    return angle / 10;
+    return angle / 2;
 }
 
 function calc_speed(dr, t1, t2) {
@@ -220,7 +220,7 @@ function calc_speed(dr, t1, t2) {
         dt = t2 - t1;
     }
     // return speed in cm/s
-    return dt == 0 ? 0:((dr * 6.72) / (dt * 0.001));
+    return dt == 0 ? 0:((dr * 6.72) / (dt * 0.001)) * 20;
 }
 
 //var ts = new TelemetryServer(null, 80);

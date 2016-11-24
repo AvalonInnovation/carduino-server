@@ -144,7 +144,7 @@ Car.prototype.receive = function(data) {
 Car.prototype.handle_raw = function(message) {
     var data = [];
     var raw = message.match(/([A-Z#]-?\d+)/g);
-
+    //console.log("%s", message);
     // Convert raw string message into associative array
     for(var i = 0; i < raw.length; i++) {
         data[raw[i][0]] = raw[i].substring(1);
@@ -157,21 +157,26 @@ Car.prototype.handle_raw = function(message) {
     msg.data.acc_y = translate_acc(data['Y']);
     msg.data.gyro = translate_gyro(data['W']);
 
-    msg.data.speed = calc_speed(data['R'] - this.prev_data['R'], this.prev_data['T'], data['T']);
+    var speed_factor = 0.1;   // Time constant of speedometer low pass filter, lower is slower
+
+    msg.data.speed = 1.2* (msg.data.speed*(1-speed_factor) + 
+      calc_speed(data['R'] - this.prev_data['R'], this.prev_data['T'], data['T'])*speed_factor);
 
     // Fire new message event
     this.emit('message', msg);
 
     // Store values for future processing
     this.prev_data = data;
+    this.prev_msg = msg;
+
 }
 
 function translate_acc(coord) {
-    return coord / 100;
+    return coord / 15;
 }
 
 function translate_gyro(angle) {
-    return angle / 100;
+    return angle / 35;
 }
 
 // returns speed in cm/s
@@ -183,9 +188,9 @@ function calc_speed(dr, t1, t2) {
     } else {
         dt = t2 - t1;
     }
-
-    speed = (dt == 0) ? 0:(((dr * 6.72)/10) / (dt * 0.001));
-
+    
+    speed = (dt == 0) ? 0:(((dr * 6.72)) / (dt * 0.001));
+    //console.log("Speed: %d dr:%d dt:%d (%d %d)", speed, dr, dt, t1, t2);
     return speed;
 }
 
