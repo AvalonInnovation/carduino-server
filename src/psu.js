@@ -117,7 +117,7 @@ PSU.prototype.init = function() {
     this.port.on('open', function() {
         console.log("PSU: OPENED: %s @ %d", self.comName, self.baudRate);
         //self.disable();
-        self.set_voltage(6.0);
+        self.set_voltage(0.0);
         self.set_current(0.5);
         self.enable();
     });
@@ -127,7 +127,7 @@ PSU.prototype.init = function() {
 }
 
 PSU.prototype.set_voltage = function(voltage) {
-    if (voltage > 0.0 && voltage < 31.00) {
+    if (voltage >= 0.0 && voltage < 31.00) {
         this.send('VSET1:' + voltage.toFixed(2).toString());
         this.send('VSET1?');
     } else {
@@ -159,7 +159,7 @@ PSU.prototype.send = function(req) {
     this.send_queue.push(req);
     if (!this.serial_busy) {
         this.serial_busy = true;
-        setTimeout(this.send_worker.bind(this), 10);
+        setTimeout(this.send_worker.bind(this), 1000);
     }
 }
 
@@ -176,7 +176,9 @@ PSU.prototype.send_worker = function() {
             }
         });
 
-        setTimeout(this.send_worker.bind(this), this.sendInterval);
+        setTimeout(this.send_worker.bind(this), 500);
+	    
+       //setTimeout(this.send_worker.bind(this), this.sendInterval);
     } else {
         this.serial_busy = false;
     }

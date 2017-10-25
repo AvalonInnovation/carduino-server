@@ -4,3 +4,36 @@ It consists of two parts:
 - src/: The server back end, responsible for communicating with the race track
   and publishing results to web front end.
 - web/: The web based front end showing realtime telemetry data.
+
+
+How to get started:
+
+--- Install git and clone the git repo of the Carduino-server:
+sudo apt-get git
+git clone https://github.com/AvalonInnovation/carduino-server
+
+
+--- Install nodeJS to run the script:
+sudo apt-get install nodejs npm
+
+
+--- (optional) For a more advanced node with Node version manager (NVM):
+sudo apt-get curl
+curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.2/install.sh | bash
+source ~/.profile 
+--- (if not working try: source ~/.bash_profile)
+command -v nvm
+nvm install node
+node -v
+npm -v
+--- more info at: https://www.ostechnix.com/install-node-js-linux/
+
+
+--- Unpack the package.json in the carduino-server directory
+npm install
+
+--- Run the src/server.js
+node src/server.js
+
+--- If run into errors: control that src/config.json websocket port of localhost is correct. 
+--- ie "port": 8081 

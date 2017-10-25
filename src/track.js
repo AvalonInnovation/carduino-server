@@ -120,7 +120,7 @@ Track.prototype.init = function() {
     // Open serial port
     this.port = new SerialPort(this.comName, {
         baudRate: this.baudRate,
-        parser: SerialPort.parsers.readline('\r') //SerialPort.parsers.raw
+        parser: SerialPort.parsers.readline('\r\n') //SerialPort.parsers.raw
     });
 
     // Register open callback
