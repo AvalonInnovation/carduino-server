@@ -45,12 +45,12 @@ RaceController.prototype.init = function() {
     //if (this.state == RC_STATE_UNINITIALIZED || this.state = RC_STATE_RACE_STOPPED) {
         this.psuCtrl.init();
         this.trackCtrl.init();
-        this.carCtrl.init();
-        this.telemetry.init();
+       // this.carCtrl.init();
+        //this.telemetry.init();
 
         this.trackCtrl.on("laptime", this.laptime_handler.bind(this));
-        this.telemetry.on("message", this.telemetry_handler.bind(this));
-        this.carCtrl.on("message", this.telemetry_handler.bind(this));
+        //this.telemetry.on("message", this.telemetry_handler.bind(this));
+        //this.carCtrl.on("message", this.telemetry_handler.bind(this));
 
         this.state = RC_STATE_INITIALIZED;
     //}
@@ -133,6 +133,7 @@ RaceController.prototype.check_precond = function() {
         return false;
     }
 
+	/*
     // Check that the tracks are online
     if (!this.trackCtrl.check_tracks()) {
         console.log("RaceController: Pre-check failed: Tracks are not online");
@@ -144,6 +145,7 @@ RaceController.prototype.check_precond = function() {
         console.log("RaceController: Pre-check failed: Cars are not online");
         return false;
     }
+	*/
 
     console.log("RaceController: Pre-check OK!");
     return true;

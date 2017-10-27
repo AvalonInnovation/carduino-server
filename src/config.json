@@ -19,8 +19,8 @@
         "psuTimeout": 1000
     },
     "backend": {
-        "host": "localhost",
-        "url": "/api/lap:8080"
+        "host": "localhost:8080",
+        "url": "/api/laps"
     },
     "websocket": {
         "host": "localhost",

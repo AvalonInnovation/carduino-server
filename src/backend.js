@@ -6,6 +6,7 @@ function Backend(config) {
 }
 
 Backend.prototype.send = function(data) {
+    console.log("Sending POST to web server");
     request.post(
         'http://' + this.host + this.url, {
             json: true,
@@ -15,6 +16,7 @@ Backend.prototype.send = function(data) {
             if (error) {
                 console.log('Backend: Error ' + body)
             }
+	    console.log(body);
         }
     );
 }
