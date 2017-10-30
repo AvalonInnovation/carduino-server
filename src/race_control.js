@@ -120,6 +120,11 @@ RaceController.prototype.enable = function() {
 RaceController.prototype.disable = function() {
     this.psuCtrl.disable();
     console.log("RaceController: Power disabled");
+    this.psuCtrl.init();
+    this.trackCtrl.init();
+    this.trackCtrl.on("laptime", this.laptime_handler.bind(this));
+
+    this.state = RC_STATE_INITIALIZED;
 }
 
 RaceController.prototype.status = function() {
