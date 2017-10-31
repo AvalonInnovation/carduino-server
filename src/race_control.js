@@ -80,7 +80,7 @@ RaceController.prototype.reset = function() {
     if (this.state == RC_STATE_UNINITIALIZED ||
         this.state == RC_STATE_INITIALIZED ||
         this.state == RC_STATE_RACE_STOPPED) {
-        trackCtrl.reset();
+        this.trackCtrl.reset();
         // Enable low voltage on PSU
         this.state = RC_STATE_INITIALIZED;
     }
@@ -119,10 +119,8 @@ RaceController.prototype.enable = function() {
 
 RaceController.prototype.disable = function() {
     this.psuCtrl.disable();
+    this.trackCtrl.reset();
     console.log("RaceController: Power disabled");
-    this.psuCtrl.init();
-    this.trackCtrl.init();
-    this.trackCtrl.on("laptime", this.laptime_handler.bind(this));
 
     this.state = RC_STATE_INITIALIZED;
 }
