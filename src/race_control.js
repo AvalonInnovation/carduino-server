@@ -11,7 +11,7 @@ var RC_STATE_RACE_STOPPED = 4;
 
 var LOW_VOLTAGE = 0.0;
 var HIGH_VOLTAGE = 12.0;
-var CURRENT_LIMIT = 0.5;
+var CURRENT_LIMIT = 1.0;
 
 var lapinfo = {
     "protocolVersion": "0.0.1",
@@ -117,6 +117,13 @@ RaceController.prototype.enable = function() {
     console.log("RaceController: Power enabled");
 }
 
+RaceController.prototype.enable_lane = function(lane) {
+    this.psuCtrl.set_current_lane(CURRENT_LIMIT, lane);
+    this.psuCtrl.set_voltage_lane(HIGH_VOLTAGE, lane);
+    this.psuCtrl.enable_lane(lane);
+    console.log("RaceController: Power enabled");
+}
+
 RaceController.prototype.disable = function() {
     this.psuCtrl.disable();
     this.trackCtrl.reset();
@@ -124,6 +131,16 @@ RaceController.prototype.disable = function() {
 
     this.state = RC_STATE_INITIALIZED;
 }
+
+RaceController.prototype.disable_lane = function(lane) {
+    this.psuCtrl.disable_lane(lane);
+    this.trackCtrl.reset_lane(lane);
+//    this.trackCtrl.reset();
+    console.log("RaceController: Power1 disabled");
+
+//    this.state = RC_STATE_INITIALIZED;
+}
+
 
 RaceController.prototype.status = function() {
 

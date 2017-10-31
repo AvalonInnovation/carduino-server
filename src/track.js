@@ -42,6 +42,10 @@ TrackController.prototype.reset = function() {
     }
 }
 
+TrackController.prototype.reset_lane = function(lane) {
+        this.tracks[lane].reset();
+}
+
 TrackController.prototype.init = function() {
     console.log("TrackController: Initializing...");
     SerialPort.list(this.probe_serial.bind(this));

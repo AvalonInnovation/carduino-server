@@ -32,6 +32,21 @@ function cli_handler(cmd) {
         case 'disable':
             raceCtrl.disable();
             break;
+        case 'disable2':
+            raceCtrl.disable_lane(0); //inparam
+            break;
+        case 'disable1':
+           // raceCtrl.disable2() //inparam;
+            raceCtrl.disable_lane(1); //inparam
+            break;
+        case 'enable2':
+            //raceCtrl.enable1() //inparam;
+            raceCtrl.enable_lane(0); //inparam
+            break;
+        case 'enable1':
+           // raceCtrl.enable2() //inparam;
+            raceCtrl.enable_lane(1); //inparam
+            break;
         default:
             console.log('Unknown CLI command');
     }

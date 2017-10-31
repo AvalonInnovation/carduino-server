@@ -44,11 +44,21 @@ PSUController.prototype.enable = function() {
     }
 }
 
+PSUController.prototype.enable_lane = function(lane) {
+        this.psus[lane].enable();
+}
+
+
 PSUController.prototype.disable = function() {
     for (var i = 0; i < this.psus.length; i++) {
         this.psus[i].disable();
     }
 }
+
+PSUController.prototype.disable_lane = function(lane) {
+        this.psus[lane].disable();
+}
+
 
 PSUController.prototype.set_voltage = function(voltage) {
     for (var i = 0; i < this.psus.length; i++) {
@@ -56,10 +66,18 @@ PSUController.prototype.set_voltage = function(voltage) {
     }
 }
 
+PSUController.prototype.set_voltage_lane = function(voltage, lane) {
+        this.psus[lane].set_voltage(voltage);
+}
+
 PSUController.prototype.set_current = function(current) {
     for (var i = 0; i < this.psus.length; i++) {
         this.psus[i].set_current(current);
     }
+}
+
+PSUController.prototype.set_current_lane = function(current, lane) {
+        this.psus[lane].set_current(current);
 }
 
 PSUController.prototype.check_voltage = function(voltage) {
